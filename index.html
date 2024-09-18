@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Code Judge</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        textarea { width: 100%; height: 200px; margin-bottom: 10px; }
+        button { margin-top: 10px; margin-right: 10px; }
+        #output, #debug { margin-top: 20px; white-space: pre-wrap; border: 1px solid #ccc; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Online Code Judge</h1>
+    <textarea id="code" placeholder="Enter your JavaScript code here...">console.log("Hello, World!");</textarea>
+    <button onclick="submitCode()">Run Code</button>
+    <button onclick="testAPIKey()">Test API Key</button>
+    <div id="output"></div>
+    <div id="debug"></div>
+
+    <script>
+        const API_KEY = '77bb37eb83msh7029a4c22bc802ep19cf85jsnab45c8f7b2bb'; // Replace with your actual API key
+        const API_HOST = 'judge0-ce.p.rapidapi.com';
+        const debug = document.getElementById('debug');
+        const output = document.getElementById('output');
+
+        async function testAPIKey() {
+            debug.textContent = 'Testing API key...';
+            try {
+                const response = await axios.get(`https://${API_HOST}/about`, {
+                    headers: {
+                        'x-rapidapi-key': API_KEY,
+                        'x-rapidapi-host': API_HOST
+                    }
+                });
+                debug.textContent = `API Key Test Successful. Judge0 CE version: ${response.data.version}`;
+            } catch (error) {
+                debug.textContent = `API Key Test Failed: ${error.message}\n\nFull error: ${JSON.stringify(error.response?.data || error, null, 2)}`;
+            }
+        }
+
+        async function submitCode() {
+            const code = document.getElementById('code').value.trim();
+            
+            if (!code) {
+                output.textContent = "Please enter some JavaScript code.";
+                return;
+            }
+
+            output.textContent = 'Submitting code...';
+            debug.textContent = '';
+
+            const options = {
+                method: 'POST',
+                url: `https://${API_HOST}/submissions`,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-rapidapi-key': API_KEY,
+                    'x-rapidapi-host': API_HOST,
+                },
+                data: {
+                    language_id: 63, // JavaScript (Node.js 12.14.0)
+                    source_code: code,
+                    stdin: ''
+                }
+            };
+
+            try {
+                const response = await axios.request(options);
+                const token = response.data.token;
+                debug.textContent = `Submission token: ${token}`;
+
+                // Poll for results
+                let result;
+                do {
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before polling
+                    result = await axios.get(`https://${API_HOST}/submissions/${token}`, {
+                        headers: {
+                            'x-rapidapi-key': API_KEY,
+                            'x-rapidapi-host': API_HOST,
+                        }
+                    });
+                } while (result.data.status.id <= 2); // 1: In Queue, 2: Processing
+
+                // Display the output or error
+                if (result.data.stdout) {
+                    output.textContent = `Output:\n${result.data.stdout}`;
+                } else if (result.data.stderr) {
+                    output.textContent = `Error:\n${result.data.stderr}`;
+                } else if (result.data.compile_output) {
+                    output.textContent = `Compilation Error:\n${result.data.compile_output}`;
+                } else {
+                    output.textContent = `Unexpected response:\n${JSON.stringify(result.data, null, 2)}`;
+                }
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+                debug.textContent = `Full error object: ${JSON.stringify(error.response?.data || error, null, 2)}`;
+            }
+        }
+    </script>
+</body>
+</html>
